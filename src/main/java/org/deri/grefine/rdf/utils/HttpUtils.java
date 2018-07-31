@@ -3,16 +3,15 @@ package org.deri.grefine.rdf.utils;
 import java.io.IOException;
 
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.HttpClient;
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.client.config.RequestConfig.Builder;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.params.ClientPNames;
-import org.apache.http.impl.client.DefaultHttpClient;
-import org.apache.http.params.BasicHttpParams;
-import org.apache.http.params.CoreConnectionPNames;
-import org.apache.http.params.CoreProtocolPNames;
-import org.apache.http.params.HttpParams;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.impl.client.HttpClients;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,13 +30,35 @@ public class HttpUtils {
     private static final int MAX_REDIRECTS = 3;
 	
 	public static HttpClient createClient() {
-        HttpParams httpParams = new BasicHttpParams();
-        httpParams.setParameter(CoreProtocolPNames.USER_AGENT, USER_AGENT);
-        httpParams.setIntParameter(CoreConnectionPNames.SO_TIMEOUT, SO_TIMEOUT);
-        httpParams.setIntParameter(CoreConnectionPNames.CONNECTION_TIMEOUT, CONNECTION_TIMEOUT);
-        httpParams.setBooleanParameter(ClientPNames.HANDLE_REDIRECTS ,true);
-        httpParams.setIntParameter(ClientPNames.MAX_REDIRECTS, MAX_REDIRECTS);
-        return new DefaultHttpClient(httpParams);
+		// https://stackoverflow.com/questions/36268092/how-to-use-httpclientbuilder-with-http-proxy
+
+		HttpClients.custom().setUserAgent(USER_AGENT);
+		HttpClientBuilder httpClientBuilder = HttpClientBuilder.create();
+
+        Builder config = RequestConfig.custom()
+        		.setSocketTimeout(SO_TIMEOUT)
+        		.setConnectTimeout(CONNECTION_TIMEOUT)
+        		.setRedirectsEnabled(true)
+        		.setMaxRedirects(MAX_REDIRECTS);
+        
+        // Handle a http-proxy
+        String proxyHost = System.getProperty( "http.proxyHost" );
+        if ( proxyHost != null ) {
+            int proxyPort = -1;
+            String proxyPortStr = System.getProperty( "http.proxyPort" );
+            if (proxyPortStr != null) {
+                try {
+                    proxyPort = Integer.parseInt( proxyPortStr );
+                } catch (NumberFormatException e) {
+                    log.warn("Invalid number for system property http.proxyPort ("+proxyPortStr+"), using default port instead");
+                }
+            }
+            HttpHost proxy = new HttpHost(proxyHost, proxyPort, "http");
+            config.setProxy( proxy );
+        }
+
+        httpClientBuilder.setDefaultRequestConfig(config.build());
+        return httpClientBuilder.build();
     }
 	
 	public static HttpEntity get(String uri) throws IOException {
@@ -64,5 +85,4 @@ public class HttpUtils {
 			throw new ClientProtocolException(msg);
 		}
 	}
-
 }
