@@ -9,7 +9,8 @@ import org.apache.any23.http.HTTPClient;
 import org.apache.any23.source.HTTPDocumentSource;
 import org.apache.any23.writer.ReportingTripleHandler;
 import org.apache.any23.writer.RepositoryWriter;
-
+import org.deri.grefine.rdf.utils.ProxyHttpClient;
+import org.deri.grefine.rdf.utils.HttpUtils;
 import org.eclipse.rdf4j.model.Value;
 import org.eclipse.rdf4j.query.BindingSet;
 import org.eclipse.rdf4j.query.QueryLanguage;
@@ -74,6 +75,7 @@ public class VocabularyImporter {
 			}else{
 				runner = new Any23();
 			}
+			runner.setHTTPClient(new ProxyHttpClient());
 			runner.setHTTPUserAgent("google-refine-rdf-extension");
 			HTTPClient client = runner.getHTTPClient();
 			HTTPDocumentSource source = new HTTPDocumentSource(client, url);
@@ -176,5 +178,4 @@ public class VocabularyImporter {
 		//SKSO always return HTML if the Accept header contains HTML regardless the other more preferred options
 		return uri.equals("http://www.w3.org/2004/02/skos/core#");
 	}
-
 }
