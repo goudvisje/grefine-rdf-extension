@@ -12,6 +12,7 @@ import org.apache.http.client.config.RequestConfig.Builder;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,18 +29,41 @@ public class HttpUtils {
 	public static final int CONNECTION_TIMEOUT = 10000;
 	public static final int SO_TIMEOUT = 60000;
     private static final int MAX_REDIRECTS = 3;
-	
-	public static HttpClient createClient() {
-		// https://stackoverflow.com/questions/36268092/how-to-use-httpclientbuilder-with-http-proxy
-
-		HttpClients.custom().setUserAgent(USER_AGENT);
-		HttpClientBuilder httpClientBuilder = HttpClientBuilder.create();
-
-        Builder config = RequestConfig.custom()
+    
+//    public static PoolingHttpClientConnectionManager getPoolingHttpClientConnectionManager() {
+//    	return PoolingHttpClientConnectionManagerSingleton.get();
+//    }
+    
+    // Inner class to make sure that we have one PoolingHttpClientConnectionManager
+    private static class PoolingHttpClientConnectionManagerSingleton extends PoolingHttpClientConnectionManager {
+    	
+    	private static PoolingHttpClientConnectionManager self;
+    	
+    	private PoolingHttpClientConnectionManagerSingleton() {
+    		super();
+    	}
+    	
+    	public static PoolingHttpClientConnectionManager get() {
+    		if (self == null) {
+    			self = new PoolingHttpClientConnectionManager();
+    		}
+    		return self;
+    	}
+    }
+    
+    public static Builder getDefaultConfig() {
+    	return RequestConfig.custom()
         		.setSocketTimeout(SO_TIMEOUT)
         		.setConnectTimeout(CONNECTION_TIMEOUT)
         		.setRedirectsEnabled(true)
         		.setMaxRedirects(MAX_REDIRECTS);
+    }
+    
+	public static HttpClientBuilder createClientBuilder(Builder config) {
+		// https://stackoverflow.com/questions/36268092/how-to-use-httpclientbuilder-with-http-proxy
+
+		HttpClients.custom().setUserAgent(USER_AGENT);
+		HttpClientBuilder httpClientBuilder = HttpClientBuilder.create();
         
         // Handle a http-proxy
         String proxyHost = System.getProperty( "http.proxyHost" );
@@ -53,12 +77,18 @@ public class HttpUtils {
                     log.warn("Invalid number for system property http.proxyPort ("+proxyPortStr+"), using default port instead");
                 }
             }
+            log.info("Use proxy: " +proxyHost +":" +proxyPort);
             HttpHost proxy = new HttpHost(proxyHost, proxyPort, "http");
             config.setProxy( proxy );
+        } else {
+        	throw new RuntimeException("Proxy is not used!! => " + System.getProperty( "http.proxyHost" ) + System.getProperty( "http.proxyPort" ));
         }
 
         httpClientBuilder.setDefaultRequestConfig(config.build());
-        return httpClientBuilder.build();
+        
+        
+        httpClientBuilder.setConnectionManager(PoolingHttpClientConnectionManagerSingleton.get());
+        return httpClientBuilder;
     }
 	
 	public static HttpEntity get(String uri) throws IOException {
@@ -75,7 +105,7 @@ public class HttpUtils {
 	}
 	
 	private static HttpEntity get(HttpGet get) throws IOException {
-		HttpClient client = createClient();
+		HttpClient client = createClientBuilder(getDefaultConfig()).build();
 		HttpResponse response = client.execute(get);
 		if (200 == response.getStatusLine().getStatusCode()) {
 			return response.getEntity();
